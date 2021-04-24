@@ -16,8 +16,9 @@ const commands = {
   'addadmin': addAdmin,
   'deladmin': delAdmin,
   'help': help,
-  'watchmovie': watchMovie,
+  'watch': watchMovie,
   'watchedlist': showWatched,
+  'unwatch': unwatchMovie,
 }
 
 const helpText = {
@@ -29,8 +30,9 @@ const helpText = {
   'unvote': 'Remove your vote from the list (if you have one)',
   'addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
   'deladmin <id>': 'Removes an admin to the admin list (admin only, use Discord ID not username)',
-  'watchmovie <name>': 'Move a movie from the voting list to the watched list (admin only)',
+  'watch <name>': 'Move a movie from the voting list to the watched list (admin only)',
   'watchedlist': 'Show list of watched movies',
+  'unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
 }
 
 require('dotenv').config();
@@ -136,13 +138,8 @@ client.on('message', msg => {
     commands[command](msg, commandInput);
   }
   else {
-    console.log(command);
     msg.channel.send(`Invalid Command: ${command}`);
   }
-
-  // for (let temp of commands) {
-  // msg.channel.send(commands.toString());
-  // }
 
 });
 
@@ -228,9 +225,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
                 movieList[reactionIdx].votes.push(user.id);
               }
             }
-            console.log(`Collected ${reaction.emoji.name} from ${user.tag}`);
             saveList();
-            // msg.delete();
             thisMsg.delete().then(() => {msgDeleted = true});
           }
         }
@@ -238,8 +233,8 @@ async function sendVoteMessage(msg, voteList, index, filter) {
     });
 }
 
-function findMovieIndex(movieName) {
-  for (let [idx, movie] of movieList.entries()) {
+function findMovieIndex(movieArr, movieName) {
+  for (let [idx, movie] of movieArr.entries()) {
     if (movie.name === movieName) {
       return idx
     }
@@ -247,10 +242,33 @@ function findMovieIndex(movieName) {
   return -1;
 }
 
+function unwatchMovie(msg, movieName) {
+  if (adminList.includes(msg.author.id)) {
+    if (watchedMovieList.some((movie) => movie.name === movieName)) {
+      const movieIdx = findMovieIndex(watchedMovieList, movieName);
+      if (movieIdx >= 0) {
+        let thisMovie = watchedMovieList[movieIdx];
+        thisMovie.votes = [];
+        movieList.push(thisMovie);
+        watchedMovieList.splice(movieIdx, 1);
+        saveList();
+        saveWatchedList();
+        msg.channel.send(`Movie: "${movieName}" added back to voting list`);
+      }
+    }
+    else {
+      msg.channel.send(`Movie: "${movieName}" not found`);
+    }
+  }
+  else {
+    msg.channel.send('Only admins can move a movie to the watched list!');
+  }
+}
+
 function watchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
     if (movieList.some((movie) => movie.name === movieName)) {
-      const movieIdx = findMovieIndex(movieName);
+      const movieIdx = findMovieIndex(movieList, movieName);
       if (movieIdx >= 0) {
         watchedMovieList.push(movieList[movieIdx]);
         movieList.splice(movieIdx, 1);
