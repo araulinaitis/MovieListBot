@@ -21,18 +21,23 @@ const commands = {
   'unwatch': unwatchMovie,
 }
 
+const viewCommands = {
+  'list': showList,
+  'watchedlist': showWatched,
+}
+
 const helpText = {
-  'help': 'Show this help text',
-  'add <name>': 'Adds a movie to the list',
-  'list': 'Shows the movie list and votes',
-  'remove <movie name>': 'Removes a movie from the list (admin only)',
-  'vote': 'Vote for a movie',
-  'unvote': 'Remove your vote from the list (if you have one)',
-  'addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
-  'deladmin <id>': 'Removes an admin to the admin list (admin only, use Discord ID not username)',
-  'watch <name>': 'Move a movie from the voting list to the watched list (admin only)',
-  'watchedlist': 'Show list of watched movies',
-  'unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
+  '!movie help': 'Show this help text',
+  '!movie add <name>': 'Adds a movie to the list',
+  '!movie list': 'Shows the movie list and votes',
+  '!movie remove <movie name>': 'Removes a movie from the list (admin only)',
+  '!movie vote': 'Vote for a movie',
+  '!movie unvote': 'Remove your vote from the list (if you have one)',
+  '!movie addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
+  '!movie deladmin <id>': 'Removes an admin to the admin list (admin only, use Discord ID not username)',
+  '!movie watch <name>': 'Move a movie from the voting list to the watched list (admin only)',
+  '!movie watchedlist': 'Show list of watched movies',
+  '!movie unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
 }
 
 require('dotenv').config();
@@ -40,7 +45,8 @@ require('dotenv').config();
 const reactionArray = ['🇦', '🇧', '🇨', '🇩', '🇪', '🇫', '🇬', '🇭', '🇮', '🇯', '🇰', '🇱', '🇲', '🇳', '🇴', '🇵', '🇶', '🇷', '🇸', '🇹', '🇺', '🇻', '🇼', '🇽', '🇾', '🇿'];
 const leftArrow = '⬅️';
 const rightArrow = '➡️';
-const CHANNEL_ID = '827571407872589884';
+const CHANNEL_IDS = ['827571407872589884', '835631070598529054'];
+const VIEW_CHANNEL_IDS = ['826628950914498573', '818984959754240040'];
 let msgDeleted;
 
 const DELETE_TIMEOUT = 10000;
@@ -53,19 +59,16 @@ const embedBase = new Discord.MessageEmbed()
   .setColor('#f5bc42')
   .setTitle('Current list:')
   .setAuthor('Beehive Movie List')
-  .setTimestamp();
 
   const watchedEmbedBase = new Discord.MessageEmbed()
     .setColor('#f5bc42')
     .setTitle('Watched Movies:')
     .setAuthor('Beehive Movie List')
-    .setTimestamp();
 
 const helpEmbedBase = new Discord.MessageEmbed()
   .setColor('#f5bc42')
   .setAuthor('Beehive Movie List')
   .setTitle('Movie List Commands:')
-  .setTimestamp();
 
 const client = new Discord.Client({
   partials: ['MESSAGE', 'REACTION', 'CHANNEL'],
@@ -127,7 +130,25 @@ client.on('message', msg => {
   }
   if (msg.author.bot) { return }
   if (!msg.content.startsWith(commandPrefix)) { return }
-  if (msg.channel.id != CHANNEL_ID) { return }
+  if (!CHANNEL_IDS.includes(msg.channel.id)) {
+    if (VIEW_CHANNEL_IDS.includes(msg.channel.id)) {
+      let commandBody = msg.content.substring(commandPrefix.length)
+      commandBody = commandBody.toLowerCase();
+      command = commandBody.split(' ')[0];
+      commandInput = commandBody.substring(command.length + 1);
+
+      if (Object.keys(viewCommands).includes(command)) {
+        viewCommands[command](msg, commandInput);
+      }
+      else {
+        msg.channel.send(`Invalid Command: ${command}.  You might be in the wrong channel`);
+      }
+      return
+    }
+    else {
+      return
+    }
+  }
 
   let commandBody = msg.content.substring(commandPrefix.length)
   commandBody = commandBody.toLowerCase();
@@ -149,6 +170,7 @@ function help(msg) {
   for (let func in helpText) {
     newEmbed.addFields({ name: func, value: helpText[func] });
   }
+  newEmbed.setTimestamp();
   msg.channel.send(newEmbed);
 }
 
@@ -338,7 +360,7 @@ function buildVoteList() {
       const movieIdx = page * itemsPerPage + idxOffset;
       if (movieIdx >= movieList.length) { break }
       const movie = movieList[movieIdx];
-      newPage.addFields({ name: `${reactionArray[movieIdx]}`, value: `: ${movie.name}` });
+      newPage.addFields({ name: `${reactionArray[movieIdx]}`, value: `${movie.name}` });
       emoteArr.push(reactionArray[movieIdx]);
     }
     if (page < numPages) { emoteArr.push(rightArrow); }
@@ -377,6 +399,7 @@ async function showList(msg) {
   let newEmbed = new Discord.MessageEmbed(embedBase);
 
   movieList.forEach(movie => newEmbed.addFields({ name: movie.name, value: movie.votes.length }));
+  newEmbed.setTimestamp();
 
   msg.channel.send(newEmbed);
 }
@@ -385,6 +408,7 @@ async function showWatched(msg) {
   let newEmbed = new Discord.MessageEmbed(watchedEmbedBase);
 
   watchedMovieList.forEach(movie => newEmbed.addFields({ name: movie.name, value: movie.votes.length }));
+  newEmbed.setTimestamp();
 
   msg.channel.send(newEmbed);
 }
