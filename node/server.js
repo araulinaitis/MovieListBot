@@ -126,19 +126,18 @@ const commandPrefix = '!movie ';
 
 client.on('message', msg => {
   if (msg.content === 'Hello') {
-    msg.channel.send('sup, ladies. My name\'s Slim Shady');
+    msg.channel.send('Sup, ladies. My name\'s Slim Shady, and I\'m the lead singer of D12 baby');
   }
   if (msg.author.bot) { return }
   if (!msg.content.startsWith(commandPrefix)) { return }
   if (!CHANNEL_IDS.includes(msg.channel.id)) {
     if (VIEW_CHANNEL_IDS.includes(msg.channel.id)) {
       let commandBody = msg.content.substring(commandPrefix.length)
-      commandBody = commandBody.toLowerCase();
       command = commandBody.split(' ')[0];
       commandInput = commandBody.substring(command.length + 1);
 
-      if (Object.keys(viewCommands).includes(command)) {
-        viewCommands[command](msg, commandInput);
+      if (Object.keys(viewCommands).includes(command.toLowerCase())) {
+        viewCommands[command.toLowerCase()](msg, commandInput);
       }
       else {
         msg.channel.send(`Invalid Command: ${command}.  You might be in the wrong channel`);
@@ -151,12 +150,11 @@ client.on('message', msg => {
   }
 
   let commandBody = msg.content.substring(commandPrefix.length)
-  commandBody = commandBody.toLowerCase();
   command = commandBody.split(' ')[0];
   commandInput = commandBody.substring(command.length + 1);
 
-  if (Object.keys(commands).includes(command)) {
-    commands[command](msg, commandInput);
+  if (Object.keys(commands).includes(command.toLowerCase())) {
+    commands[command.toLowerCase()](msg, commandInput);
   }
   else {
     msg.channel.send(`Invalid Command: ${command}`);
@@ -177,7 +175,7 @@ function help(msg) {
 function addMovie(msg, input) {
   msg.channel.send(`adding movie: ${input}`);
   for (let movie of movieList) {
-    if (movie.name == input) {
+    if (movie.name.toLowerCase() == input.toLowerCase()) {
       msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
       return
     }
@@ -185,7 +183,7 @@ function addMovie(msg, input) {
   movieList.push({ name: input, votes: [] });
   saveList();
 
-  showList(msg);
+  showList(msg).then(msg.delete());
 }
 
 function unvote(msg) {
@@ -257,7 +255,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
 
 function findMovieIndex(movieArr, movieName) {
   for (let [idx, movie] of movieArr.entries()) {
-    if (movie.name === movieName) {
+    if (movie.name.toLowerCase() === movieName.toLowerCase()) {
       return idx
     }
   }
@@ -266,7 +264,7 @@ function findMovieIndex(movieArr, movieName) {
 
 function unwatchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
-    if (watchedMovieList.some((movie) => movie.name === movieName)) {
+    if (watchedMovieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
       const movieIdx = findMovieIndex(watchedMovieList, movieName);
       if (movieIdx >= 0) {
         let thisMovie = watchedMovieList[movieIdx];
@@ -289,7 +287,7 @@ function unwatchMovie(msg, movieName) {
 
 function watchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
-    if (movieList.some((movie) => movie.name === movieName)) {
+    if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
       const movieIdx = findMovieIndex(movieList, movieName);
       if (movieIdx >= 0) {
         watchedMovieList.push(movieList[movieIdx]);
@@ -373,7 +371,7 @@ function buildVoteList() {
 function removeMovie(msg, input) {
   if (adminList.includes(msg.author.id)) {
     for (let [idx, movie] of movieList.entries()) {
-      if (movie.name == input) {
+      if (movie.name.toLowerCase() == input.toLowerCase()) {
         movieList.splice(idx, 1);
         break
       }
