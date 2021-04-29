@@ -187,12 +187,19 @@ function addMovie(msg, input) {
 }
 
 function unvote(msg) {
+  let voteRemoved = false;
   for (let movie of movieList) {
     const voteIdx = movie.votes.indexOf(msg.author.id);
     if (voteIdx >= 0) {
       movie.votes.splice(voteIdx, 1);
+      msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`Removed your vote, ${name.nickname || msg.author.username}`));
       saveList();
+      voteRemoved = true;
     }
+  }
+  if (!voteRemoved) {
+    msg.channel.send();
+    msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`You don't have any votes, ${name.nickname || msg.author.username}`));
   }
 }
 
@@ -205,7 +212,7 @@ async function addReactions(msg, reactionArr) {
 async function sendVoteMessage(msg, voteList, index, filter) {
   let collectorBlock = true;
 
-  msgDeleted = false;
+  let msgDeleted = false;
   msg.channel.send(voteList[index].message)
     .then(async (thisMsg) => {
       addReactions(thisMsg, voteList[index].emotes).then(() => {
@@ -213,6 +220,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
         deleteMessagePromise = new Promise((resolve, reject) => {
           setTimeout(() => {
             if (!msgDeleted) {
+              msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`Too slow, ${name.nickname || msg.author.username}`));
               thisMsg.delete()
             }
             resolve('deleting message');
@@ -243,6 +251,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
               // add if not already voted
               if (!movieList[reactionIdx].votes.includes(user.id)) {
                 movieList[reactionIdx].votes.push(user.id);
+                msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.nickname || msg.author.username} voted for movie: ${movieList[reactionIdx].name}`));
               }
             }
             saveList();
