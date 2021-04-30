@@ -125,8 +125,11 @@ client.on('ready', () => {
 const commandPrefix = '!movie ';
 
 client.on('message', msg => {
-  if (msg.content === 'Hello') {
+  if (msg.content === 'Hello' && Math.floor(Math.random() * 10) < 1) {
     msg.channel.send('Sup, ladies. My name\'s Slim Shady, and I\'m the lead singer of D12 baby');
+  }
+  if (msg.author.id == '265540781643792386' && Math.floor(Math.random() * 100) < 1) {
+    msg.channel.send('Dad?');
   }
   if (msg.author.bot) { return }
   if (!msg.content.startsWith(commandPrefix)) { return }
