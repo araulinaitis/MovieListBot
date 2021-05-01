@@ -31,7 +31,7 @@ const helpText = {
   '!movie add <name>': 'Adds a movie to the list',
   '!movie list': 'Shows the movie list and votes',
   '!movie remove <movie name>': 'Removes a movie from the list (admin only)',
-  '!movie vote': 'Vote for a movie',
+  '!movie vote': 'Vote for a movie (Wait for all reactions to spawn before voting)',
   '!movie unvote': 'Remove your vote from the list (if you have one)',
   '!movie addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
   '!movie deladmin <id>': 'Removes an admin to the admin list (admin only, use Discord ID not username)',
@@ -129,7 +129,7 @@ client.on('message', msg => {
     msg.channel.send('Sup, ladies. My name\'s Slim Shady, and I\'m the lead singer of D12 baby');
   }
   if (msg.author.id == '265540781643792386' && Math.floor(Math.random() * 100) < 1) {
-    msg.channel.send('Dad?');
+    msg.reply('Dad?');
   }
   if (msg.author.bot) { return }
   if (!msg.content.startsWith(commandPrefix)) { return }
@@ -176,7 +176,6 @@ function help(msg) {
 }
 
 function addMovie(msg, input) {
-  msg.channel.send(`adding movie: ${input}`);
   for (let movie of movieList) {
     if (movie.name.toLowerCase() == input.toLowerCase()) {
       msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
@@ -185,6 +184,7 @@ function addMovie(msg, input) {
   }
   movieList.push({ name: input, votes: [] });
   saveList();
+  msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.nickname || msg.author.username} added movie: ${input}`));
 
   showList(msg).then(msg.delete());
 }
