@@ -35,6 +35,7 @@ const helpText = {
   '!movie mostvotes': 'Shows the movie with the most amount of votes',
   '!movie remove <movie name>': 'Removes a movie from the list (admin only)',
   '!movie vote': 'Vote for a movie (Wait for all reactions to spawn before voting)',
+  '!movie vote <name>': 'Vote for a movie by name (must match, case insensitive)',
   '!movie unvote': 'Remove your vote from the list (if you have one)',
   '!movie addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
   '!movie deladmin <id>': 'Removes an admin to the admin list (admin only, use Discord ID not username)',
@@ -135,15 +136,16 @@ client.on('ready', () => {
 const commandPrefix = '!movie ';
 
 client.on('message', msg => {
-  if (msg.content === 'Hello' && Math.floor(Math.random() * 10) < 1) {
-    msg.channel.send('Sup, ladies. My name\'s Slim Shady, and I\'m the lead singer of D12 baby');
-  }
   // if (msg.author.id == '265540781643792386' && Math.floor(Math.random() * 100) < 1) {
   //   msg.reply('Dad?');
   // }
   if (msg.author.bot) { return }
   if (!msg.content.startsWith(commandPrefix)) { return }
   if (!CHANNEL_IDS.includes(msg.channel.id)) {
+    if (msg.content === 'Hello' && Math.floor(Math.random() * 10) < 1) {
+      msg.channel.send('Sup, ladies. My name\'s Slim Shady, and I\'m the lead singer of D12 baby');
+      return
+    }
     if (VIEW_CHANNEL_IDS.includes(msg.channel.id)) {
       let commandBody = msg.content.substring(commandPrefix.length)
       command = commandBody.split(' ')[0];
@@ -348,18 +350,42 @@ function delAdmin(msg, adminId) {
   }
 }
 
-function voteMovie(msg) {
-  const voteList = buildVoteList();
-
-  const filter = (reaction, user) => {
-    return (reactionArray.includes(reaction.emoji.name) || reaction.emoji.name === leftArrow || reaction.emoji.name === rightArrow) && msg.author.id === user.id;
+function voteMovie(msg, movieName) {
+  if (movieName) {
+    if (movieList.some(movie => movie.name.toLowerCase() === movieName.toLowerCase())) {
+      const movieIdx = findMovieIndex(movieList, movieName);
+      if (movieIdx >= 0) {
+        // check all movies to see if user has already voted
+        for (let movie of movieList) {
+          const voteIdx = movie.votes.indexOf(msg.author.id);
+          if (voteIdx >= 0) {
+            movie.votes.splice(voteIdx, 1);
+          }
+        }
+        // add if not already voted
+        if (!movieList[movieIdx].votes.includes(msg.author.id)) {
+          movieList[movieIdx].votes.push(msg.author.id);
+          msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[movieIdx].name}`));
+        }
+      }
+      else {
+        msg.channel.send(`Movie: "${movieName}" not found`);
+      }
+    }
   }
-  let pageIdx = 0;
+  else {
+    const voteList = buildVoteList();
 
-  sendVoteMessage(msg, voteList, pageIdx, filter)
-    .then(() => {
-      msg.delete();
-    });
+    const filter = (reaction, user) => {
+      return (reactionArray.includes(reaction.emoji.name) || reaction.emoji.name === leftArrow || reaction.emoji.name === rightArrow) && msg.author.id === user.id;
+    }
+    let pageIdx = 0;
+
+    sendVoteMessage(msg, voteList, pageIdx, filter)
+      .then(() => {
+        msg.delete();
+      });
+  }
 }
 
 function buildVoteList() {
