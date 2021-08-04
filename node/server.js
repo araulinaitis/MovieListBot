@@ -20,6 +20,8 @@ const commands = {
   'watchedlist': showWatched,
   'unwatch': unwatchMovie,
   'mostvotes': mostVotes,
+  'addlink': addLink,
+  'removelink': removeLink
 }
 
 const viewCommands = {
@@ -42,6 +44,7 @@ const helpText = {
   '!movie watch <name>': 'Move a movie from the voting list to the watched list (admin only)',
   '!movie watchedlist': 'Show list of watched movies',
   '!movie unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
+  '!movie addlink <name> <link>': 'Adds a reference link to a movie',
 }
 
 require('dotenv').config();
@@ -350,6 +353,45 @@ function delAdmin(msg, adminId) {
   }
 }
 
+function addLink(msg, commandText) {
+
+  const commandArr = commandText.split(' ');
+  const link = commandArr[commandArr.length - 1];
+  const movieNameArr = commandArr.slice(0, -1);
+  const movieName = movieNameArr.join(' ');
+
+  if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
+
+    const movieIdx = findMovieIndex(movieList, movieName);
+    if (movieIdx >= 0) {
+
+      movieList[movieIdx].link = link;
+      saveList();
+      msg.channel.send(`${link} added to Movie: "${movieName}"`);
+    }
+  }
+  else {
+    msg.channel.send(`Movie: "${movieName}" not found`);
+  }
+}
+
+function removeLink(msg, movieName) {
+
+  if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
+
+    const movieIdx = findMovieIndex(movieList, movieName);
+    if (movieIdx >= 0) {
+
+      movieList[movieIdx].link = null;
+      saveList();
+      msg.channel.send(`link removed from Movie: "${movieName}"`);
+    }
+  }
+  else {
+    msg.channel.send(`Movie: "${movieName}" not found`);
+  }
+}
+
 function voteMovie(msg, movieName) {
   if (movieName) {
     if (movieList.some(movie => movie.name.toLowerCase() === movieName.toLowerCase())) {
@@ -406,7 +448,12 @@ function buildVoteList() {
       const movieIdx = page * itemsPerPage + idxOffset;
       if (movieIdx >= movieList.length || movieIdx > reactionArray.length) { break }
       const movie = movieList[movieIdx];
-      newPage.addFields({ name: `${reactionArray[movieIdx]}`, value: `${movie.name}` });
+      if (movie.link) {
+        newPage.addFields({ name: `${reactionArray[movieIdx]}`, value: `${movie.name} ([ref](${movie.link}))` });
+      }
+      else {
+        newPage.addFields({ name: `${reactionArray[movieIdx]}`, value: `${movie.name}` });
+      }
       emoteArr.push(reactionArray[movieIdx]);
     }
     if (page < numPages) { emoteArr.push(rightArrow); }
@@ -448,11 +495,23 @@ async function showList(msg) {
 
     if (movie.addedBy) {
       await msg.guild.members.fetch(movie.addedBy).then(addedName => {
-        newEmbed.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: movie.votes.length });
+        if (movie.link) {
+          newEmbed.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
+          newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+        }
+        else {
+          newEmbed.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: movie.votes.length });
+        }
       });
     }
     else {
-      newEmbed.addFields({ name: movie.name, value: movie.votes.length });
+      if (movie.link) {
+        newEmbed.addFields({ name: movie.name, value: `${movie.votes.length}`, inline: true});
+        newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline:  true });
+      }
+      else {
+        newEmbed.addFields({ name: movie.name, value: movie.votes.length });
+      }
     }
   }
   newEmbed.setTimestamp();
