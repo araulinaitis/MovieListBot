@@ -367,7 +367,8 @@ function addLink(msg, commandText) {
 
       movieList[movieIdx].link = link;
       saveList();
-      msg.channel.send(`${link} added to Movie: "${movieName}"`);
+      // msg.channel.send(`${link} added to Movie: "${movieName}"`).then(newMSG => { newMSG.suppressEmbeds(); });
+      msg.channel.send(`<${link}> added to Movie: "${movieName}"`);
     }
   }
   else {
@@ -428,6 +429,7 @@ function voteMovie(msg, movieName) {
         msg.delete();
       });
   }
+  saveList();
 }
 
 function buildVoteList() {
