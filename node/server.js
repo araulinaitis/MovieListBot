@@ -21,7 +21,8 @@ const commands = {
   'unwatch': unwatchMovie,
   'mostvotes': mostVotes,
   'addlink': addLink,
-  'removelink': removeLink
+  'removelink': removeLink,
+  'info': movieInfo,
 }
 
 const viewCommands = {
@@ -45,6 +46,7 @@ const helpText = {
   '!movie watchedlist': 'Show list of watched movies',
   '!movie unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
   '!movie addlink <name> <link>': 'Adds a reference link to a movie',
+  '!movie info <name>':  'Displays number of votes and reference link (if available) for a movie'
 }
 
 require('dotenv').config();
@@ -77,11 +79,15 @@ const helpEmbedBase = new Discord.MessageEmbed()
   .setAuthor('Beehive Movie List')
   .setTitle('Movie List Commands:');
 
-
-const voteLeaderBase = new Discord.MessageEmbed()
+  const voteLeaderBase = new Discord.MessageEmbed()
   .setColor('#f5bc42')
   .setAuthor('Beehive Movie List')
-  .setTitle('Current Leader:');
+  .setTitle('Current Leaders:');
+
+  const movieInfoBase = new Discord.MessageEmbed()
+    .setColor('#f5bc42')
+    .setAuthor('Beehive Movie List')
+    .setTitle('Movie Info:');
 
 const client = new Discord.Client({
   partials: ['MESSAGE', 'REACTION', 'CHANNEL'],
@@ -353,6 +359,40 @@ function delAdmin(msg, adminId) {
   }
 }
 
+async function movieInfo(msg, input) {
+
+  if (movieList.some(movie => movie.name.toLowerCase() === input.toLowerCase())) {
+
+    const movieIdx = findMovieIndex(movieList, input);
+    if (movieIdx >= 0) {
+      let infoMsg = new Discord.MessageEmbed(movieInfoBase);
+
+      movie = movieList[movieIdx];
+      if (movie.addedBy) {
+        await msg.guild.members.fetch(movie.addedBy).then(addedName => {
+          if (movie.link) {
+            infoMsg.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
+            infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+          }
+          else {
+            infoMsg.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: movie.votes.length });
+          }
+        });
+      }
+      else {
+        if (movie.link) {
+          infoMsg.addFields({ name: movie.name, value: `${movie.votes.length}`, inline: true });
+          infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+        }
+        else {
+          infoMsg.addFields({ name: movie.name, value: movie.votes.length });
+        }
+      }
+      msg.channel.send(infoMsg);
+    }
+  }
+}
+
 function addLink(msg, commandText) {
 
   const commandArr = commandText.split(' ');
@@ -360,7 +400,7 @@ function addLink(msg, commandText) {
   const movieNameArr = commandArr.slice(0, -1);
   const movieName = movieNameArr.join(' ');
 
-  if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
+  if (movieList.some(movie => movie.name.toLowerCase() === movieName.toLowerCase())) {
 
     const movieIdx = findMovieIndex(movieList, movieName);
     if (movieIdx >= 0) {
