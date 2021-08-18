@@ -4,6 +4,7 @@ const fs = require('fs');
 const listFileName = './movieList.json';
 const adminFileName = './adminList.json';
 const watchedListFileName = './watchedList.json';
+const { performance } = require('perf_hooks');
 
 // https://discord.com/api/oauth2/authorize?client_id=826203543442685962&permissions=3221564480&scope=bot
 
@@ -37,7 +38,7 @@ const helpText = {
   '!movie list': 'Shows the movie list and votes',
   '!movie mostvotes': 'Shows the movie with the most amount of votes',
   '!movie remove <movie name>': 'Removes a movie from the list (admin only)',
-  '!movie vote': 'Vote for a movie (Wait for all reactions to spawn before voting)',
+  // '!movie vote': 'Vote for a movie (Wait for all reactions to spawn before voting)',
   '!movie vote <name>': 'Vote for a movie by name (must match, case insensitive)',
   '!movie unvote': 'Remove your vote from the list (if you have one)',
   '!movie addadmin <id>': 'Adds an admin to the admin list (admin only, use Discord ID not username)',
@@ -46,7 +47,7 @@ const helpText = {
   '!movie watchedlist': 'Show list of watched movies',
   '!movie unwatch <name>': 'Moves a movie from the watched list back to the vote list (votes reset to 0) (admin only)',
   '!movie addlink <name> <link>': 'Adds a reference link to a movie',
-  '!movie info <name>':  'Displays number of votes and reference link (if available) for a movie'
+  '!movie info <name>': 'Displays number of votes and reference link (if available) for a movie'
 }
 
 require('dotenv').config();
@@ -60,9 +61,9 @@ let msgDeleted;
 
 const DELETE_TIMEOUT = 10000;
 
-let movieList = [];
+let movieList = {};
 let adminList = [];
-let watchedMovieList = [];
+let watchedMovieList = {};
 
 const embedBase = new Discord.MessageEmbed()
   .setColor('#f5bc42')
@@ -79,34 +80,33 @@ const helpEmbedBase = new Discord.MessageEmbed()
   .setAuthor('Beehive Movie List')
   .setTitle('Movie List Commands:');
 
-  const voteLeaderBase = new Discord.MessageEmbed()
+const voteLeaderBase = new Discord.MessageEmbed()
   .setColor('#f5bc42')
   .setAuthor('Beehive Movie List')
   .setTitle('Current Leaders:');
 
-  const movieInfoBase = new Discord.MessageEmbed()
-    .setColor('#f5bc42')
-    .setAuthor('Beehive Movie List')
-    .setTitle('Movie Info:');
+const movieInfoBase = new Discord.MessageEmbed()
+  .setColor('#f5bc42')
+  .setAuthor('Beehive Movie List')
+  .setTitle('Movie Info:');
 
 const client = new Discord.Client({
   partials: ['MESSAGE', 'REACTION', 'CHANNEL'],
 });
-
 
 client.login(process.env.BOT_TOKEN);
 
 client.on('ready', () => {
   fs.readFile(listFileName, 'utf8', (err, data) => {
     if (err) {
-      fs.writeFile(listFileName, JSON.stringify([]), () => { });
+      fs.writeFile(listFileName, JSON.stringify({}), () => { });
     }
     else {
       try {
         movieList = JSON.parse(data);
       }
       catch (err) {
-        movieList = [];
+        movieList = {};
       }
     }
   });
@@ -127,14 +127,14 @@ client.on('ready', () => {
 
   fs.readFile(watchedListFileName, 'utf8', (err, data) => {
     if (err) {
-      fs.writeFile(watchedListFileName, JSON.stringify([]), () => { });
+      fs.writeFile(watchedListFileName, JSON.stringify({}), () => { });
     }
     else {
       try {
         watchedMovieList = JSON.parse(data);
       }
       catch (err) {
-        watchedMovieList = [];
+        watchedMovieList = {};
       }
     }
   });
@@ -197,13 +197,11 @@ function help(msg) {
 }
 
 function addMovie(msg, input) {
-  for (let movie of movieList) {
-    if (movie.name.toLowerCase() == input.toLowerCase()) {
-      msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
-      return
-    }
+  if (movieList[input.toLowerCase()]) {
+    msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
+    return
   }
-  movieList.push({ name: input, votes: [], addedBy: msg.author.id});
+  movieList[input.toLowerCase()] = { prettyName: input, votes: {}, addedBy: msg.author.id };
   saveList();
   msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} added movie: ${input}`));
 
@@ -212,8 +210,8 @@ function addMovie(msg, input) {
 
 function unvote(msg) {
   let voteRemoved = false;
-  for (let movie of movieList) {
-    const voteIdx = movie.votes.indexOf(msg.author.id);
+  for (let movie of Object.values(movieList)) {
+    const voteIdx = movie.votes.map(vote => vote.id).indexOf(msg.author.id);
     if (voteIdx >= 0) {
       movie.votes.splice(voteIdx, 1);
       msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`Removed your vote, ${name.displayName}`));
@@ -222,7 +220,6 @@ function unvote(msg) {
     }
   }
   if (!voteRemoved) {
-    msg.channel.send();
     msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`You don't have any votes, ${name.displayName}`));
   }
 }
@@ -234,6 +231,7 @@ async function addReactions(msg, reactionArr) {
 }
 
 async function sendVoteMessage(msg, voteList, index, filter) {
+  // not updated
   let collectorBlock = true;
 
   let msgDeleted = false;
@@ -275,7 +273,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
               // add if not already voted
               if (!movieList[reactionIdx].votes.includes(user.id)) {
                 movieList[reactionIdx].votes.push(user.id);
-                msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[reactionIdx].name}`));
+                msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[reactionIdx].prettyName}`));
               }
             }
             saveList();
@@ -297,17 +295,15 @@ function findMovieIndex(movieArr, movieName) {
 
 function unwatchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
-    if (watchedMovieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
-      const movieIdx = findMovieIndex(watchedMovieList, movieName);
-      if (movieIdx >= 0) {
-        let thisMovie = watchedMovieList[movieIdx];
-        thisMovie.votes = [];
-        movieList.push(thisMovie);
-        watchedMovieList.splice(movieIdx, 1);
-        saveList();
-        saveWatchedList();
-        msg.channel.send(`Movie: "${movieName}" added back to voting list`);
-      }
+    if (watchedMovieList[movieName.toLowerCase()]) {
+      let thisMovie = watchedMovieList[movieName.toLowerCase()];
+      thisMovie.votes = {};
+      movieList[movieName.toLowerCase()] = thisMovie;
+      delete watchedMovieList[movieName.toLowerCase()];
+      saveList();
+      saveWatchedList();
+      msg.channel.send(`Movie: "${movieName}" added back to voting list`);
+
     }
     else {
       msg.channel.send(`Movie: "${movieName}" not found`);
@@ -320,22 +316,20 @@ function unwatchMovie(msg, movieName) {
 
 function watchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
-    if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
-      const movieIdx = findMovieIndex(movieList, movieName);
-      if (movieIdx >= 0) {
-        watchedMovieList.push(movieList[movieIdx]);
-        movieList.splice(movieIdx, 1);
-        saveList();
-        saveWatchedList();
-        msg.channel.send(`Movie: "${movieName}" added to watched list`);
-      }
+    if (movieList[movieName.toLowerCase()]) {
+      const thisMovie = movieList[movieName.toLowerCase()];
+      watchedMovieList[movieName.toLowerCase()] = thisMovie;
+      delete movieList[movieName.toLowerCase()];
+      saveList();
+      saveWatchedList();
+      msg.channel.send(`Movie: "${movieName}" added to watched list`);
     }
     else {
       msg.channel.send(`Movie: "${movieName}" not found`);
     }
   }
   else {
-    msg.channel.send('Only admins can move a movie to the watched list!');
+    msg.channel.send('Only admins can move a movie to the watched list, sucka!');
   }
 }
 
@@ -361,35 +355,33 @@ function delAdmin(msg, adminId) {
 
 async function movieInfo(msg, input) {
 
-  if (movieList.some(movie => movie.name.toLowerCase() === input.toLowerCase())) {
+  if (movieList[input.toLowerCase()]) {
 
-    const movieIdx = findMovieIndex(movieList, input);
-    if (movieIdx >= 0) {
-      let infoMsg = new Discord.MessageEmbed(movieInfoBase);
+    let infoMsg = new Discord.MessageEmbed(movieInfoBase);
+    const movie = movieList[input.toLowerCase()];
 
-      movie = movieList[movieIdx];
-      if (movie.addedBy) {
-        await msg.guild.members.fetch(movie.addedBy).then(addedName => {
-          if (movie.link) {
-            infoMsg.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
-            infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
-          }
-          else {
-            infoMsg.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: movie.votes.length });
-          }
-        });
-      }
-      else {
+    if (movie.addedBy) {
+      await msg.guild.members.fetch(movie.addedBy).then(addedName => {
         if (movie.link) {
-          infoMsg.addFields({ name: movie.name, value: `${movie.votes.length}`, inline: true });
+          infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
           infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
         }
         else {
-          infoMsg.addFields({ name: movie.name, value: movie.votes.length });
+          infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
         }
-      }
-      msg.channel.send(infoMsg);
+      });
     }
+    else {
+      if (movie.link) {
+        infoMsg.addFields({ name: movie.prettyName, value: `${movie.votes.length}`, inline: true });
+        infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+      }
+      else {
+        infoMsg.addFields({ name: movie.prettyName, value: movie.votes.length });
+      }
+    }
+    msg.channel.send(infoMsg);
+
   }
 }
 
@@ -400,16 +392,13 @@ function addLink(msg, commandText) {
   const movieNameArr = commandArr.slice(0, -1);
   const movieName = movieNameArr.join(' ');
 
-  if (movieList.some(movie => movie.name.toLowerCase() === movieName.toLowerCase())) {
+  if (movieList[movieName.toLowerCase()]) {
 
-    const movieIdx = findMovieIndex(movieList, movieName);
-    if (movieIdx >= 0) {
+    movieList[movieName.toLowerCase()].link = link;
+    saveList();
+    // msg.channel.send(`${link} added to Movie: "${movieName}"`).then(newMSG => { newMSG.suppressEmbeds(); });
+    msg.channel.send(`<${link}> added to Movie: "${movieName}"`);
 
-      movieList[movieIdx].link = link;
-      saveList();
-      // msg.channel.send(`${link} added to Movie: "${movieName}"`).then(newMSG => { newMSG.suppressEmbeds(); });
-      msg.channel.send(`<${link}> added to Movie: "${movieName}"`);
-    }
   }
   else {
     msg.channel.send(`Movie: "${movieName}" not found`);
@@ -417,16 +406,10 @@ function addLink(msg, commandText) {
 }
 
 function removeLink(msg, movieName) {
-
-  if (movieList.some((movie) => movie.name.toLowerCase() === movieName.toLowerCase())) {
-
-    const movieIdx = findMovieIndex(movieList, movieName);
-    if (movieIdx >= 0) {
-
-      movieList[movieIdx].link = null;
-      saveList();
-      msg.channel.send(`link removed from Movie: "${movieName}"`);
-    }
+  if (movieList[movieName.toLowerCase()]) {
+    movieList[movieName.toLowerCase()].link = null;
+    saveList();
+    msg.channel.send(`link removed from Movie: "${movieName}"`);
   }
   else {
     msg.channel.send(`Movie: "${movieName}" not found`);
@@ -435,44 +418,43 @@ function removeLink(msg, movieName) {
 
 function voteMovie(msg, movieName) {
   if (movieName) {
-    if (movieList.some(movie => movie.name.toLowerCase() === movieName.toLowerCase())) {
-      const movieIdx = findMovieIndex(movieList, movieName);
-      if (movieIdx >= 0) {
-        // check all movies to see if user has already voted
-        for (let movie of movieList) {
-          const voteIdx = movie.votes.indexOf(msg.author.id);
-          if (voteIdx >= 0) {
-            movie.votes.splice(voteIdx, 1);
-          }
-        }
-        // add if not already voted
-        if (!movieList[movieIdx].votes.includes(msg.author.id)) {
-          movieList[movieIdx].votes.push(msg.author.id);
-          msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[movieIdx].name}`));
+    if (movieList[movieName.toLowerCase()]) {
+      // check all movies to see if user has already voted
+      for (let movie of Object.values(movieList)) {
+        const voteIdx = movie.votes.indexOf(msg.author.id);
+        if (voteIdx >= 0) {
+          movie.votes.splice(voteIdx, 1);
         }
       }
-      else {
-        msg.channel.send(`Movie: "${movieName}" not found`);
+      // add if not already voted
+      if (!movieList[movieName.toLowerCase()].votes.map(vote => vote.id).includes(msg.author.id)) {
+        movieList[movieName.toLowerCase()].votes.push({ id: msg.author.id, timestamp: performance.now() });
+        msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[movieName.toLowerCase()].prettyName}`));
       }
+    }
+    else {
+      msg.channel.send(`Movie: "${movieName}" not found`);
     }
   }
   else {
-    const voteList = buildVoteList();
+    msg.channel.send('You need to include the movie name to vote!');
+    // const voteList = buildVoteList();
 
-    const filter = (reaction, user) => {
-      return (reactionArray.includes(reaction.emoji.name) || reaction.emoji.name === leftArrow || reaction.emoji.name === rightArrow) && msg.author.id === user.id;
-    }
-    let pageIdx = 0;
+    // const filter = (reaction, user) => {
+    //   return (reactionArray.includes(reaction.emoji.name) || reaction.emoji.name === leftArrow || reaction.emoji.name === rightArrow) && msg.author.id === user.id;
+    // }
+    // let pageIdx = 0;
 
-    sendVoteMessage(msg, voteList, pageIdx, filter)
-      .then(() => {
-        msg.delete();
-      });
+    // sendVoteMessage(msg, voteList, pageIdx, filter)
+    //   .then(() => {
+    //     msg.delete();
+    //   });
   }
   saveList();
 }
 
 function buildVoteList() {
+  // outdated, but could possibly be reused for showing longer lists later
   let voteListArr = [];
   const voteListBase = new Discord.MessageEmbed()
     .setColor('#f5bc42')
@@ -507,11 +489,8 @@ function buildVoteList() {
 
 function removeMovie(msg, input) {
   if (adminList.includes(msg.author.id)) {
-    for (let [idx, movie] of movieList.entries()) {
-      if (movie.name.toLowerCase() == input.toLowerCase()) {
-        movieList.splice(idx, 1);
-        break
-      }
+    if (movieList[input.toLowerCase()]){
+      delete movieList[input.toLowerCase()];
     }
     saveList();
     showList(msg).then(msg.delete());
@@ -533,26 +512,25 @@ async function saveAdminList() {
 async function showList(msg) {
   let newEmbed = new Discord.MessageEmbed(embedBase);
 
-  for await (let movie of movieList) {
-
+  for await (let movie of Object.values(movieList)) {
     if (movie.addedBy) {
       await msg.guild.members.fetch(movie.addedBy).then(addedName => {
         if (movie.link) {
-          newEmbed.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
+          newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
           newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
         }
         else {
-          newEmbed.addFields({ name: `${movie.name} - ${addedName.displayName}`, value: movie.votes.length });
+          newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
         }
       });
     }
     else {
       if (movie.link) {
-        newEmbed.addFields({ name: movie.name, value: `${movie.votes.length}`, inline: true});
-        newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline:  true });
+        newEmbed.addFields({ name: movie.prettyName, value: `${movie.votes.length}`, inline: true });
+        newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
       }
       else {
-        newEmbed.addFields({ name: movie.name, value: movie.votes.length });
+        newEmbed.addFields({ name: movie.prettyName, value: movie.votes.length });
       }
     }
   }
@@ -563,7 +541,7 @@ async function showList(msg) {
 async function showWatched(msg) {
   let newEmbed = new Discord.MessageEmbed(watchedEmbedBase);
 
-  watchedMovieList.forEach(movie => newEmbed.addFields({ name: movie.name, value: movie.votes.length }));
+  Object.values(watchedMovieList).forEach(movie => newEmbed.addFields({ name: movie.prettyName, value: movie.votes.length }));
   newEmbed.setTimestamp();
 
   msg.channel.send(newEmbed);
@@ -578,7 +556,7 @@ async function mostVotes(msg) {
   let thirdVotes = 0;
   let thirdIdx = [];
 
-  for (let [idx, movie] of movieList.entries()) {
+  for (let [idx, movie] of Object.entries(movieList)){
     const numVotes = movie.votes.length;
     if (numVotes == 0) { continue }
     if (numVotes > maxVotes) {
@@ -611,19 +589,19 @@ async function mostVotes(msg) {
   }
 
   let embed = new Discord.MessageEmbed(voteLeaderBase);
-  
+
   for await (let idx of [...maxIdx, ...secondIdx, ...thirdIdx]) {
 
     if (movieList[idx].addedBy) {
       await msg.guild.members.fetch(movieList[idx].addedBy).then(addedName => {
-        embed.addFields({ name: `${movieList[idx].name} - ${addedName.displayName}`, value: movieList[idx].votes.length });
+        embed.addFields({ name: `${movieList[idx].prettyName} - ${addedName.displayName}`, value: movieList[idx].votes.length });
       });
     }
     else {
-      embed.addFields({ name: movieList[idx].name, value: movieList[idx].votes.length });
+      embed.addFields({ name: movieList[idx].prettyName, value: movieList[idx].votes.length });
     }
   }
-  
+
   // for (let idx of [...maxIdx, ...secondIdx, ...thirdIdx]) {
   //   embed.addFields({ name: movieList[idx].name, value: movieList[idx].votes.length });
   // }
