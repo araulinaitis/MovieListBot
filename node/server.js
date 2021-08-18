@@ -4,7 +4,7 @@ const fs = require('fs');
 const listFileName = './movieList.json';
 const adminFileName = './adminList.json';
 const watchedListFileName = './watchedList.json';
-const { performance } = require('perf_hooks');
+const voteLifeInMS = 4 * 7 * 24 * 60 * 60 * 1000; // weeks * days/week * hours/day * minutes/hour * seconds/minute * ms/second
 
 // https://discord.com/api/oauth2/authorize?client_id=826203543442685962&permissions=3221564480&scope=bot
 
@@ -57,7 +57,6 @@ const leftArrow = '⬅️';
 const rightArrow = '➡️';
 const CHANNEL_IDS = ['827571407872589884', '835631070598529054'];
 const VIEW_CHANNEL_IDS = ['826628950914498573', '818984959754240040'];
-let msgDeleted;
 
 const DELETE_TIMEOUT = 10000;
 
@@ -178,6 +177,7 @@ client.on('message', msg => {
   commandInput = commandBody.substring(command.length + 1);
 
   if (Object.keys(commands).includes(command.toLowerCase())) {
+    checkVoteLife();
     commands[command.toLowerCase()](msg, commandInput);
   }
   else {
@@ -185,6 +185,13 @@ client.on('message', msg => {
   }
 
 });
+
+function checkVoteLife() {
+  for (let movie of Object.values(movieList)) {
+    movie.votes = movie.votes.filter(vote => Date.now() - parseFloat(vote.timestamp) < voteLifeInMS);
+    saveList();
+  }
+}
 
 function help(msg) {
 
@@ -428,7 +435,7 @@ function voteMovie(msg, movieName) {
       }
       // add if not already voted
       if (!movieList[movieName.toLowerCase()].votes.map(vote => vote.id).includes(msg.author.id)) {
-        movieList[movieName.toLowerCase()].votes.push({ id: msg.author.id, timestamp: performance.now() });
+        movieList[movieName.toLowerCase()].votes.push({ id: msg.author.id, timestamp: Date.now() });
         msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[movieName.toLowerCase()].prettyName}`));
       }
     }
