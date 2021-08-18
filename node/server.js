@@ -208,7 +208,7 @@ function addMovie(msg, input) {
     msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
     return
   }
-  movieList[input.toLowerCase()] = { prettyName: input, votes: {}, addedBy: msg.author.id };
+  movieList[input.toLowerCase()] = { prettyName: input, votes: [], addedBy: msg.author.id };
   saveList();
   msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} added movie: ${input}`));
 
