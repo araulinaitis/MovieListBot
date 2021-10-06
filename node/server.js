@@ -186,10 +186,10 @@ client.on('message', msg => {
 
 });
 
-function checkVoteLife() {
+async function checkVoteLife() {
   for (let movie of Object.values(movieList)) {
-    movie.votes = movie.votes.filter(vote => Date.now() - parseFloat(vote.timestamp) < voteLifeInMS);
-    saveList();
+    movie.votes = movie.votes.filter(vote => (Date.now() - Number(vote.timestamp)) < voteLifeInMS);
+    await saveList();
   }
 }
 
@@ -203,26 +203,26 @@ function help(msg) {
   msg.channel.send(newEmbed);
 }
 
-function addMovie(msg, input) {
+async function addMovie(msg, input) {
   if (movieList[input.toLowerCase()]) {
     msg.channel.send(`Cannot add movie ${input}.  It's already on the list!`);
     return
   }
   movieList[input.toLowerCase()] = { prettyName: input, votes: [], addedBy: msg.author.id };
-  saveList();
+  await saveList();
   msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} added movie: ${input}`));
 
   showList(msg).then(msg.delete());
 }
 
-function unvote(msg) {
+async function unvote(msg) {
   let voteRemoved = false;
   for (let movie of Object.values(movieList)) {
     const voteIdx = movie.votes.map(vote => vote.id).indexOf(msg.author.id);
     if (voteIdx >= 0) {
       movie.votes.splice(voteIdx, 1);
       msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`Removed your vote, ${name.displayName}`));
-      saveList();
+      await saveList();
       voteRemoved = true;
     }
   }
@@ -257,7 +257,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
         });
       });
       const collector = thisMsg.createReactionCollector(filter, { max: 1000, time: 10000 });
-      collector.on('collect', (reaction, user) => {
+      collector.on('collect', async (reaction, user) => {
         if (!collectorBlock) {
           if (reaction.emoji.name === leftArrow) {
             thisMsg.delete().then(() => { msgDeleted = true });
@@ -283,7 +283,7 @@ async function sendVoteMessage(msg, voteList, index, filter) {
                 msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[reactionIdx].prettyName}`));
               }
             }
-            saveList();
+            await saveList();
             thisMsg.delete().then(() => { msgDeleted = true });
           }
         }
@@ -300,15 +300,15 @@ function findMovieIndex(movieArr, movieName) {
   return -1;
 }
 
-function unwatchMovie(msg, movieName) {
+async function unwatchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
     if (watchedMovieList[movieName.toLowerCase()]) {
       let thisMovie = watchedMovieList[movieName.toLowerCase()];
       thisMovie.votes = {};
       movieList[movieName.toLowerCase()] = thisMovie;
       delete watchedMovieList[movieName.toLowerCase()];
-      saveList();
-      saveWatchedList();
+      await saveList();
+      await saveWatchedList();
       msg.channel.send(`Movie: "${movieName}" added back to voting list`);
 
     }
@@ -321,14 +321,14 @@ function unwatchMovie(msg, movieName) {
   }
 }
 
-function watchMovie(msg, movieName) {
+async function watchMovie(msg, movieName) {
   if (adminList.includes(msg.author.id)) {
     if (movieList[movieName.toLowerCase()]) {
       const thisMovie = movieList[movieName.toLowerCase()];
       watchedMovieList[movieName.toLowerCase()] = thisMovie;
       delete movieList[movieName.toLowerCase()];
-      saveList();
-      saveWatchedList();
+      await saveList();
+      await saveWatchedList();
       msg.channel.send(`Movie: "${movieName}" added to watched list`);
     }
     else {
@@ -340,20 +340,22 @@ function watchMovie(msg, movieName) {
   }
 }
 
-function addAdmin(msg, adminId) {
+async function addAdmin(msg, adminId) {
   if (adminList.includes(msg.author.id)) {
     adminList.push(adminId)
-    saveAdminList().then(msg.delete());
+    await saveAdminList();
+    msg.delete();
   }
   else {
     msg.channel.send('Nice try, only admins can add admins!').then(msg.delete());
   }
 }
 
-function delAdmin(msg, adminId) {
+async function delAdmin(msg, adminId) {
   if (adminList.includes(msg.author.id)) {
     adminList.splice(adminList.indexOf(adminId), 1);
-    saveAdminList().then(msg.delete());
+    await saveAdminList();
+    msg.delete();
   }
   else {
     msg.channel.send('Nice try, only admins can add admins!').then(msg.delete());
@@ -392,7 +394,7 @@ async function movieInfo(msg, input) {
   }
 }
 
-function addLink(msg, commandText) {
+async function addLink(msg, commandText) {
 
   const commandArr = commandText.split(' ');
   const link = commandArr[commandArr.length - 1];
@@ -402,7 +404,7 @@ function addLink(msg, commandText) {
   if (movieList[movieName.toLowerCase()]) {
 
     movieList[movieName.toLowerCase()].link = link;
-    saveList();
+    await saveList();
     // msg.channel.send(`${link} added to Movie: "${movieName}"`).then(newMSG => { newMSG.suppressEmbeds(); });
     msg.channel.send(`<${link}> added to Movie: "${movieName}"`);
 
@@ -412,10 +414,10 @@ function addLink(msg, commandText) {
   }
 }
 
-function removeLink(msg, movieName) {
+async function removeLink(msg, movieName) {
   if (movieList[movieName.toLowerCase()]) {
     movieList[movieName.toLowerCase()].link = null;
-    saveList();
+    await saveList();
     msg.channel.send(`link removed from Movie: "${movieName}"`);
   }
   else {
@@ -423,12 +425,13 @@ function removeLink(msg, movieName) {
   }
 }
 
-function voteMovie(msg, movieName) {
+async function voteMovie(msg, movieName) {
   if (movieName) {
+    console.log(movieName, movieName.toLowerCase());
     if (movieList[movieName.toLowerCase()]) {
       // check all movies to see if user has already voted
       for (let movie of Object.values(movieList)) {
-        const voteIdx = movie.votes.indexOf(msg.author.id);
+        const voteIdx = movie.votes.map(vote => vote.id).indexOf(msg.author.id);
         if (voteIdx >= 0) {
           movie.votes.splice(voteIdx, 1);
         }
@@ -437,6 +440,7 @@ function voteMovie(msg, movieName) {
       if (!movieList[movieName.toLowerCase()].votes.map(vote => vote.id).includes(msg.author.id)) {
         movieList[movieName.toLowerCase()].votes.push({ id: msg.author.id, timestamp: Date.now() });
         msg.guild.members.fetch(msg.author.id).then(name => msg.channel.send(`${name.displayName} voted for movie: ${movieList[movieName.toLowerCase()].prettyName}`));
+        msg.guild.members.fetch(msg.author.id).then(name => console.log(`${name.displayName} voted for movie: ${movieList[movieName.toLowerCase()].prettyName}`));
       }
     }
     else {
@@ -457,7 +461,7 @@ function voteMovie(msg, movieName) {
     //     msg.delete();
     //   });
   }
-  saveList();
+  await saveList();
 }
 
 function buildVoteList() {
@@ -494,26 +498,35 @@ function buildVoteList() {
   return voteListArr;
 }
 
-function removeMovie(msg, input) {
+async function removeMovie(msg, input) {
   if (adminList.includes(msg.author.id)) {
     if (movieList[input.toLowerCase()]){
       delete movieList[input.toLowerCase()];
     }
-    saveList();
+    await saveList();
     showList(msg).then(msg.delete());
   }
 }
 
 function saveList() {
-  fs.writeFile(listFileName, JSON.stringify(movieList), () => { });
+  return new Promise(resolve => {
+    fs.writeFile(listFileName, JSON.stringify(movieList), () => { });
+    resolve()
+  });
 }
 
 function saveWatchedList() {
-  fs.writeFile(watchedListFileName, JSON.stringify(watchedMovieList), () => { });
+  return new Promise(resolve => {
+    fs.writeFile(watchedListFileName, JSON.stringify(watchedMovieList), () => { });
+    resolve()
+  });
 }
 
-async function saveAdminList() {
-  fs.writeFile(adminFileName, JSON.stringify(adminList), () => { });
+function saveAdminList() {
+  return new Promise(resolve => {
+    fs.writeFile(adminFileName, JSON.stringify(adminList), () => { });
+    resolve()
+  });
 }
 
 async function showList(msg) {
