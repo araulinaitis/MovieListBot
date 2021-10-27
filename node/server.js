@@ -155,9 +155,9 @@ client.on('message', msg => {
       return
     }
     if (VIEW_CHANNEL_IDS.includes(msg.channel.id)) {
-      let commandBody = msg.content.substring(commandPrefix.length)
-      command = commandBody.split(' ')[0];
-      commandInput = commandBody.substring(command.length + 1);
+      const commandBody = msg.content.substring(commandPrefix.length)
+      const command = commandBody.split(' ')[0];
+      const commandInput = commandBody.substring(command.length + 1);
 
       if (Object.keys(viewCommands).includes(command.toLowerCase())) {
         viewCommands[command.toLowerCase()](msg, commandInput);
@@ -172,9 +172,9 @@ client.on('message', msg => {
     }
   }
 
-  let commandBody = msg.content.substring(commandPrefix.length)
-  command = commandBody.split(' ')[0];
-  commandInput = commandBody.substring(command.length + 1);
+  const commandBody = msg.content.substring(commandPrefix.length)
+  const command = commandBody.split(' ')[0];
+  const commandInput = commandBody.substring(command.length + 1);
 
   if (Object.keys(commands).includes(command.toLowerCase())) {
     checkVoteLife();
@@ -508,25 +508,16 @@ async function removeMovie(msg, input) {
   }
 }
 
-function saveList() {
-  return new Promise(resolve => {
-    fs.writeFile(listFileName, JSON.stringify(movieList), () => { });
-    resolve()
-  });
+async function saveList() {
+  await fs.promises.writeFile(listFileName, JSON.stringify(movieList));
 }
 
-function saveWatchedList() {
-  return new Promise(resolve => {
-    fs.writeFile(watchedListFileName, JSON.stringify(watchedMovieList), () => { });
-    resolve()
-  });
+async function saveWatchedList() {
+  await fs.promises.writeFile(watchedListFileName, JSON.stringify(watchedMovieList));
 }
 
-function saveAdminList() {
-  return new Promise(resolve => {
-    fs.writeFile(adminFileName, JSON.stringify(adminList), () => { });
-    resolve()
-  });
+async function saveAdminList() {
+  await fs.writeFile(adminFileName, JSON.stringify(adminList));
 }
 
 async function showList(msg) {
