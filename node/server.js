@@ -521,19 +521,20 @@ async function saveAdminList() {
 }
 
 async function showList(msg) {
+  let embedArr = [];
   let newEmbed = new Discord.MessageEmbed(embedBase);
+  let embedCount = 0;
 
-  for await (let movie of Object.values(movieList)) {
+  for await(let movie of Object.values(movieList)) {
     if (movie.addedBy) {
-      await msg.guild.members.fetch(movie.addedBy).then(addedName => {
-        if (movie.link) {
-          newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
-          newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
-        }
-        else {
-          newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
-        }
-      });
+      const addedName = await msg.guild.members.fetch(movie.addedBy);
+      if (movie.link) {
+        newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
+        newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+      }
+      else {
+        newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
+      }
     }
     else {
       if (movie.link) {
@@ -544,9 +545,23 @@ async function showList(msg) {
         newEmbed.addFields({ name: movie.prettyName, value: movie.votes.length });
       }
     }
+    if (embedCount >= 25) {
+      newEmbed.setTimestamp();
+      embedArr.push(newEmbed);
+      newEmbed = new Discord.MessageEmbed(embedBase);
+      embedCount = 0;
+    }
+    else {
+      embedCount++;
+    }
   }
-  newEmbed.setTimestamp();
-  msg.channel.send(newEmbed);
+  if (embedCount > 0) {
+    newEmbed.setTimestamp();
+    embedArr.push(newEmbed);
+  }
+  for (let embed of embedArr) {
+    await msg.channel.send(embed);
+  }
 }
 
 async function showWatched(msg) {
