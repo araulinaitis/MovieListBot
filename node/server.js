@@ -368,17 +368,25 @@ async function movieInfo(msg, input) {
 
     let infoMsg = new Discord.MessageEmbed(movieInfoBase);
     const movie = movieList[input.toLowerCase()];
+    let addedName;
+    try {
+      if (movie.addedBy) {
+        addedName = await msg.guild.members.fetch(movie.addedBy);
+      }
+    }
+    catch (err) {
+      console.log(err);
+      addedName = null;
+    }
+    if (movie.addedBy && addedName) {
+      if (movie.link) {
+        infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
+        infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
+      }
+      else {
+        infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
+      }
 
-    if (movie.addedBy) {
-      await msg.guild.members.fetch(movie.addedBy).then(addedName => {
-        if (movie.link) {
-          infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
-          infoMsg.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
-        }
-        else {
-          infoMsg.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: movie.votes.length });
-        }
-      });
     }
     else {
       if (movie.link) {
@@ -500,7 +508,7 @@ function buildVoteList() {
 
 async function removeMovie(msg, input) {
   if (adminList.includes(msg.author.id)) {
-    if (movieList[input.toLowerCase()]){
+    if (movieList[input.toLowerCase()]) {
       delete movieList[input.toLowerCase()];
     }
     await saveList();
@@ -525,9 +533,18 @@ async function showList(msg) {
   let newEmbed = new Discord.MessageEmbed(embedBase);
   let embedCount = 0;
 
-  for await(let movie of Object.values(movieList)) {
-    if (movie.addedBy) {
-      const addedName = await msg.guild.members.fetch(movie.addedBy);
+  for await (let movie of Object.values(movieList)) {
+    let addedName;
+    try {
+      if (movie.addedBy) {
+        addedName = await msg.guild.members.fetch(movie.addedBy);
+      }
+    }
+    catch (err) {
+      console.log(err);
+      addedName = null;
+    }
+    if (movie.addedBy && addedName) {
       if (movie.link) {
         newEmbed.addFields({ name: `${movie.prettyName} - ${addedName.displayName}`, value: `${movie.votes.length}`, inline: true });
         newEmbed.addFields({ name: 'IMDB/Trailer link:', value: `[link](${movie.link})`, inline: true });
@@ -582,7 +599,7 @@ async function mostVotes(msg) {
   let thirdVotes = 0;
   let thirdIdx = [];
 
-  for (let [idx, movie] of Object.entries(movieList)){
+  for (let [idx, movie] of Object.entries(movieList)) {
     const numVotes = movie.votes.length;
     if (numVotes == 0) { continue }
     if (numVotes > maxVotes) {
@@ -616,12 +633,20 @@ async function mostVotes(msg) {
 
   let embed = new Discord.MessageEmbed(voteLeaderBase);
 
-  for await (let idx of [...maxIdx, ...secondIdx, ...thirdIdx]) {
+  for (let idx of [...maxIdx, ...secondIdx, ...thirdIdx]) {
 
-    if (movieList[idx].addedBy) {
-      await msg.guild.members.fetch(movieList[idx].addedBy).then(addedName => {
-        embed.addFields({ name: `${movieList[idx].prettyName} - ${addedName.displayName}`, value: movieList[idx].votes.length });
-      });
+    let addedName;
+    try {
+      if (movie.addedBy) {
+        addedName = await msg.guild.members.fetch(Object.values(movieList)[idx].addedBy);
+      }
+    }
+    catch (err) {
+      console.log(err);
+      addedName = null;
+    }
+    if (movieList[idx].addedBy && addedName) {
+      embed.addFields({ name: `${movieList[idx].prettyName} - ${addedName.displayName}`, value: movieList[idx].votes.length });
     }
     else {
       embed.addFields({ name: movieList[idx].prettyName, value: movieList[idx].votes.length });
