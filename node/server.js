@@ -582,12 +582,36 @@ async function showList(msg) {
 }
 
 async function showWatched(msg) {
+  let embedArr = [];
   let newEmbed = new Discord.MessageEmbed(watchedEmbedBase);
+  let embedCount = 0;
 
-  Object.values(watchedMovieList).forEach(movie => newEmbed.addFields({ name: movie.prettyName, value: movie.votes.length }));
-  newEmbed.setTimestamp();
+  for (let movie of Object.values(watchedMovieList)) {
+    newEmbed.addFields({name: movie.prettyName, value: movie.votes.length});
+    if (embedCount >= 25) {
+      newEmbed.setTimestamp();
+      embedArr.push(newEmbed);
+      newEmbed = new Discord.MessageEmbed(watchedEmbedBase);
+      embedCount = 0;
+    }
+    else {
+      embedCount++;
+    }
+  }
+  
+  if (embedCount > 0) {
+    newEmbed.setTimestamp();
+    embedArr.push(newEmbed);
+  }
+  for (let embed of embedArr) {
+    embed.setTimestamp();
+    await msg.channel.send(embed);
+  }
 
-  msg.channel.send(newEmbed);
+  // Object.values(watchedMovieList).forEach(movie => newEmbed.addFields({ name: movie.prettyName, value: movie.votes.length }));
+  // newEmbed.setTimestamp();
+
+  // msg.channel.send(newEmbed);
 }
 
 async function mostVotes(msg) {
