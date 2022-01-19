@@ -1,4 +1,2 @@
 *.env
-watchedList.json
 adminList.json
-movieList.json
